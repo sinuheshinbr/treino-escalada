@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans);
+
+  /* Surfaces */
+  --color-background: #020617;        /* slate-950 — app bg */
+  --color-foreground: #f1f5f9;        /* slate-100 — main text */
+  --color-card: #0f172a;              /* slate-900 — cards */
+  --color-card-foreground: #f1f5f9;
+  --color-muted: #1e293b;             /* slate-800 — subtle bg / hover */
+  --color-muted-foreground: #94a3b8;  /* slate-400 — labels */
+  --color-subtle: #64748b;            /* slate-500 — faintest text */
+
+  /* Primary brand (Slate & Electric → sky-400) */
+  --color-primary: #38bdf8;
+  --color-primary-hover: #7dd3fc;     /* sky-300 — hover lightens */
+  --color-primary-foreground: #020617;
+
+  /* Secondary accent (lime-400) */
+  --color-secondary: #a3e635;
+  --color-secondary-foreground: #052e16;
+
+  /* Status */
+  --color-success: #34d399;           /* emerald-400 */
+  --color-warning: #fbbf24;           /* amber-400 */
+  --color-destructive: #fb7185;       /* rose-400 */
+  --color-destructive-foreground: #fff1f2;
+
+  /* Border */
+  --color-border: #1e293b;            /* slate-800 */
+  --color-border-strong: #334155;     /* slate-700 */
+
+  /* Manual override accent (week view rings) */
+  --color-manual: #a78bfa;            /* violet-400 */
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  min-height: 100vh;
+}
+
+@layer base {
+  input,
+  textarea,
+  select {
+    background-color: var(--color-card);
+    color: var(--color-foreground);
+    border-color: var(--color-border-strong);
+    color-scheme: dark;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-subtle);
+  }
+
+  /* Native date pickers: indicator should be light */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+    cursor: pointer;
+  }
+
+  hr {
+    border-color: var(--color-border);
+  }
+}
