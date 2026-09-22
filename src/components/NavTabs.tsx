@@ -5,11 +5,8 @@ import { usePathname } from "next/navigation";
 
 const TABS: { href: string; label: string }[] = [
   { href: "/", label: "Hoje" },
-  { href: "/disposicao", label: "Disposição" },
-  { href: "/treinos", label: "Treinos" },
-  { href: "/macrociclos", label: "Macrociclos" },
-  { href: "/avaliacoes", label: "Avaliações" },
-  { href: "/viagens", label: "Viagens" },
+  { href: "/forca", label: "Força" },
+  { href: "/ciclo", label: "Ciclo" },
 ];
 
 export default function NavTabs() {
@@ -19,9 +16,7 @@ export default function NavTabs() {
     <nav className="flex gap-1 overflow-x-auto">
       {TABS.map((tab) => {
         const isActive =
-          tab.href === "/"
-            ? pathname === "/"
-            : pathname.startsWith(tab.href);
+          tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
         return (
           <Link
             key={tab.href}

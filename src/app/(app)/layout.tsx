@@ -1,5 +1,4 @@
 import { auth, signOut } from "@/auth";
-import Link from "next/link";
 import NavTabs from "@/components/NavTabs";
 import { redirect } from "next/navigation";
 
@@ -19,19 +18,14 @@ export default async function AppLayout({
           <div className="flex justify-between items-start mb-4">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Escalada
+                Fingerboard
               </h1>
               <p className="text-muted-foreground text-sm mt-1">
-                Treino, disposição e agenda
+                Força máxima de dedos
               </p>
             </div>
             <div className="text-right">
-              <Link
-                href="/perfil"
-                className="text-foreground hover:text-primary text-sm"
-              >
-                {session.user.name}
-              </Link>
+              <p className="text-foreground text-sm">{session.user.name}</p>
               <p className="text-muted-foreground text-xs mt-0.5">{email}</p>
               <form
                 action={async () => {

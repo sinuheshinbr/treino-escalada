@@ -8,8 +8,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Escalada",
-  description: "Treinos de escalada, avaliações e agenda de rocha",
+  title: "Fingerboard",
+  description: "Treino e acompanhamento de força máxima de dedos",
 };
 
 export default function RootLayout({

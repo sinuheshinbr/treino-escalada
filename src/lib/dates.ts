@@ -22,6 +22,11 @@ export function diffDays(from: string, to: string): number {
   return Math.round(ms / 86400000);
 }
 
+/** Dia da semana de uma chave de dia. 0 = domingo. */
+export function getDayOfWeek(key: string): number {
+  return parseDate(key).getDay();
+}
+
 export function isValidDayKey(key: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
   const [y, m, d] = key.split("-").map(Number);
