@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { logSession, type Cycle, type Session } from "@/app/actions-fingerboard";
 import {
+  logSession,
+  type Cycle,
+  type Session,
+  type Test,
+} from "@/app/actions-fingerboard";
+import {
+  BASELINE_WINDOW_DAYS,
   CYCLE_LENGTH_WEEKS,
   GRIP_LABEL,
   MAW_EDGE_MM,
@@ -13,6 +19,10 @@ import {
   READINESS_COLOR,
   READINESS_SCALE,
   REST_SECONDS,
+  TEST_ATTEMPTS,
+  TEST_PULL_SECONDS,
+  TEST_REST_MIN,
+  TEST_WARMUP,
   cycleWeek,
   preSessionCheck,
   suggestNext,
@@ -36,13 +46,14 @@ const DOW = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sába
 interface Props {
   cycle: Cycle | null;
   sessions: Session[];
+  tests: Test[];
 }
 
 interface DraftSet extends SetLog {
   key: number;
 }
 
-export default function HojeBoard({ cycle, sessions }: Props) {
+export default function HojeBoard({ cycle, sessions, tests }: Props) {
   const today = getTodayKey();
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -52,11 +63,24 @@ export default function HojeBoard({ cycle, sessions }: Props) {
   const [draft, setDraft] = useState<DraftSet[] | null>(null);
   const [notes, setNotes] = useState("");
   const [editing, setEditing] = useState(false);
+  const [skipBaseline, setSkipBaseline] = useState(false);
 
   const week = cycle ? cycleWeek(diffDays(cycle.startDate, today)) : null;
   const plan = week ? weekPlan(week) : null;
   const cycleSessions = cycle ? sessions.filter((s) => s.cycleId === cycle._id) : [];
   const alreadyLogged = cycleSessions.find((s) => s.date === today) ?? null;
+
+  /* Linha de base: um teste recente o bastante para calibrar este ciclo.
+     Sem ela não há carga calibrada nem contra o que medir a evolução. */
+  const baseline = cycle
+    ? (tests
+        .filter(
+          (t) =>
+            t.date <= today &&
+            diffDays(t.date, cycle.startDate) <= BASELINE_WINDOW_DAYS
+        )
+        .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null)
+    : null;
 
   /* Última sessão válida da mesma fase — é a referência do protocolo. */
   const lastSamePhase = plan
@@ -263,6 +287,11 @@ export default function HojeBoard({ cycle, sessions }: Props) {
   }
 
   if (!plan) return null;
+
+  /* Teste de linha de base vem antes da primeira sessão do ciclo. */
+  if (!baseline && !alreadyLogged && !skipBaseline) {
+    return <BaselineCard today={today} onSkip={() => setSkipBaseline(true)} />;
+  }
 
   /* --------------------------- dia de treino --------------------------- */
 
@@ -588,6 +617,94 @@ function LoggedCard({
           Editar
         </button>
       </section>
+    </div>
+  );
+}
+
+function BaselineCard({ today, onSkip }: { today: string; onSkip: () => void }) {
+  return (
+    <div className="space-y-4">
+      <section className="bg-card border border-primary/30 rounded-xl p-4">
+        <p className="text-subtle text-sm capitalize">{formatDayBR(today)}</p>
+        <h2 className="font-semibold text-foreground text-lg mt-0.5 mb-2">
+          Teste de linha de base primeiro
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          O ciclo ainda não tem um teste de força máxima. Sem ele não há carga
+          calibrada para o MAW nem contra o que medir a evolução daqui a 10
+          semanas. É uma sessão curta — faz hoje, treina na próxima.
+        </p>
+      </section>
+
+      <section className="bg-card border border-border rounded-xl p-4">
+        <h3 className="font-semibold text-foreground mb-1">Antes de subir no reglete</h3>
+        <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 list-disc pl-4">
+          <li>Dedos descansados: 48h sem escalada dura nem suspensão.</li>
+          <li>
+            Célula de carga ancorada firme, reglete de {MAW_EDGE_MM}mm, pegada em
+            meia-crimp.
+          </li>
+          <li>
+            <strong className="text-foreground">Anote a posição do braço.</strong>{" "}
+            Ombro engajado, cotovelo quase estendido. Posição diferente no próximo
+            teste = número incomparável.
+          </li>
+          <li>5 a 10 min de aquecimento geral antes de tocar no reglete.</li>
+        </ul>
+
+        <h3 className="font-semibold text-foreground mb-2">Aquecimento nos dedos</h3>
+        <ul className="divide-y divide-border mb-4">
+          {TEST_WARMUP.map((w) => (
+            <li key={w.pct} className="py-1.5 flex justify-between text-sm">
+              <span className="text-muted-foreground">
+                ~{w.pct}% do máximo estimado
+              </span>
+              <span className="text-foreground tabular-nums">
+                {w.seconds}s · descansa {w.restMin} min
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <h3 className="font-semibold text-foreground mb-2">O teste</h3>
+        <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal pl-4">
+          <li>
+            Uma mão por vez. Puxada de{" "}
+            <strong className="text-foreground">{TEST_PULL_SECONDS} segundos</strong>{" "}
+            no máximo esforço.
+          </li>
+          <li>
+            O comando mental é <strong className="text-foreground">puxar o mais
+            forte possível</strong> — não &ldquo;aguentar&rdquo;. O pico chega nos
+            primeiros 2–3s.
+          </li>
+          <li>
+            Até {TEST_ATTEMPTS} tentativas por mão, {TEST_REST_MIN} min de descanso
+            entre elas. Fica com a melhor.
+          </li>
+          <li>
+            Parou de subir em duas tentativas seguidas? É fadiga. Encerra e usa o
+            melhor número.
+          </li>
+          <li>Pesa-te no mesmo dia — o % do peso corporal depende disso.</li>
+        </ol>
+      </section>
+
+      <div className="flex gap-2">
+        <Link
+          href="/forca"
+          className="bg-primary text-primary-foreground font-medium rounded-lg px-4 py-2 text-sm hover:bg-primary-hover flex-1 text-center"
+        >
+          Registrar o teste
+        </Link>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="text-subtle hover:text-foreground text-sm px-4"
+        >
+          Treinar mesmo assim
+        </button>
+      </div>
     </div>
   );
 }

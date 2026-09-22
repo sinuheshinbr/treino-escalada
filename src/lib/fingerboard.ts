@@ -28,6 +28,41 @@ export const ABORT_LOAD_DROP_PCT = 25;
 /** Aumento de profundidade do reglete que dispara abortar a sessão (MED). */
 export const ABORT_EDGE_GAIN_MM = 2;
 
+/* ------------------------- teste de força máxima ------------------------- */
+
+/** Duração da puxada máxima. O pico chega nos primeiros 2–3s; 7s garante capturá-lo. */
+export const TEST_PULL_SECONDS = 7;
+/** Descanso entre mãos e entre tentativas. */
+export const TEST_REST_MIN = 3;
+/** Tentativas por mão. Fica-se com a melhor. */
+export const TEST_ATTEMPTS = 3;
+/** Janela em que um teste ainda conta como linha de base do ciclo. */
+export const BASELINE_WINDOW_DAYS = 14;
+/** Horas de descanso de dedos exigidas antes de testar. */
+export const TEST_REST_HOURS = 48;
+
+export interface WarmupStep {
+  pct: number;
+  seconds: number;
+  restMin: number;
+}
+
+/** Aquecimento progressivo antes do teste. Testar frio é como se lesiona. */
+export const TEST_WARMUP: WarmupStep[] = [
+  { pct: 50, seconds: 5, restMin: 1 },
+  { pct: 70, seconds: 5, restMin: 2 },
+  { pct: 85, seconds: 5, restMin: 2 },
+  { pct: 90, seconds: 3, restMin: 3 },
+];
+
+/** O que invalida a comparação entre dois testes. */
+export const TEST_INVALIDATORS = [
+  "Posição do braço ou do corpo diferente da do teste anterior",
+  "Meia-crimp desmanchando para pegada aberta no meio da puxada",
+  "Dedos não descansados — some com o efeito do bloco inteiro",
+  "Horário do dia muito diferente",
+];
+
 export interface WeekPlan {
   week: number;
   phase: Phase;

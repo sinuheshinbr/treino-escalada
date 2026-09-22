@@ -6,6 +6,9 @@ import ForceChart, { type ChartSeries } from "@/components/ForceChart";
 import {
   GRIP_LABEL,
   MAW_EDGE_MM,
+  TEST_PULL_SECONDS,
+  TEST_REST_HOURS,
+  TEST_REST_MIN,
   asymmetryPct,
   pctBodyweight,
   type Grip,
@@ -184,9 +187,15 @@ export default function ForcaBoard({ tests, defaultBodyweight }: Props) {
             <div>
               <h2 className="font-semibold text-foreground">Novo teste</h2>
               <p className="text-muted-foreground text-sm mt-1">
-                Aquece bem. Puxada máxima de <strong>7 segundos</strong> na célula de
-                carga, uma mão por vez, no reglete de {MAW_EDGE_MM}mm. Registra o pico.
-                Dois minutos entre as mãos.
+                Puxada máxima de <strong>{TEST_PULL_SECONDS} segundos</strong> na
+                célula de carga, uma mão por vez, no reglete de {MAW_EDGE_MM}mm em
+                meia-crimp. Registra o <strong>pico</strong>, não a média.{" "}
+                {TEST_REST_MIN} min entre as mãos.
+              </p>
+              <p className="text-subtle text-sm mt-2">
+                Para o número ser comparável com o próximo teste: dedos descansados
+                há {TEST_REST_HOURS}h, mesma posição de braço e ombro, mesmo horário
+                do dia.
               </p>
             </div>
 
