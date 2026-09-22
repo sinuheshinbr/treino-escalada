@@ -12,11 +12,13 @@ import {
   CYCLE,
   CYCLE_LENGTH_WEEKS,
   GRIP_LABEL,
-  MAW_EDGE_MM,
   PHASE_COLOR,
   PHASE_SHORT,
-  avgMargin,
+  TEST_EDGE_MM,
   cycleWeek,
+  isRecruitWeek,
+  sessionMoves,
+  sessionPeak,
   type Grip,
 } from "@/lib/fingerboard";
 import {
@@ -42,7 +44,6 @@ export default function CicloBoard({ cycle, sessions }: Props) {
   const [days, setDays] = useState<number[]>([2, 5]);
   const [grip, setGrip] = useState<Grip>("half-crimp");
   const [bodyweight, setBodyweight] = useState("");
-  const [medEdge, setMedEdge] = useState("18");
   const [confirmEnd, setConfirmEnd] = useState(false);
 
   function toggleDay(d: number) {
@@ -56,9 +57,7 @@ export default function CicloBoard({ cycle, sessions }: Props) {
   function handleStart() {
     setError("");
     const bw = parseFloat(bodyweight.replace(",", "."));
-    const edge = parseFloat(medEdge.replace(",", "."));
     if (isNaN(bw) || bw <= 0) return setError("Informe seu peso corporal");
-    if (isNaN(edge) || edge <= 0) return setError("Informe o reglete inicial do bloco MED");
     if (days.length !== 2) return setError("Escolha exatamente 2 dias de treino");
     startTransition(async () => {
       const r = await startCycle({
@@ -66,7 +65,6 @@ export default function CicloBoard({ cycle, sessions }: Props) {
         days,
         grip,
         bodyweightKg: bw,
-        startEdgeMedMm: edge,
       });
       if (r.error) setError(r.error);
     });
@@ -97,8 +95,8 @@ export default function CicloBoard({ cycle, sessions }: Props) {
         <section className="bg-card border border-border rounded-xl p-4">
           <h2 className="font-semibold text-foreground mb-1">Começar um ciclo</h2>
           <p className="text-muted-foreground text-sm mb-4">
-            10 semanas: 4 de MAW no {MAW_EDGE_MM}mm com carga, 1 de deload, 4 de MED
-            reduzindo o reglete, 1 de deload. Duas sessões por semana.
+            10 semanas: 4 de puxadas máximas na célula de carga, 1 de deload, 4 de
+            recrutamento no board da parede, 1 de deload. Duas sessões por semana.
           </p>
 
           <div className="space-y-4">
@@ -137,32 +135,18 @@ export default function CicloBoard({ cycle, sessions }: Props) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-muted-foreground mb-1" htmlFor="bw">
-                  Peso corporal (kg)
-                </label>
-                <input
-                  id="bw"
-                  inputMode="decimal"
-                  value={bodyweight}
-                  onChange={(e) => setBodyweight(e.target.value)}
-                  placeholder="72,5"
-                  className="border rounded-lg px-3 py-2 text-sm w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-muted-foreground mb-1" htmlFor="medEdge">
-                  Reglete inicial do MED (mm)
-                </label>
-                <input
-                  id="medEdge"
-                  inputMode="decimal"
-                  value={medEdge}
-                  onChange={(e) => setMedEdge(e.target.value)}
-                  className="border rounded-lg px-3 py-2 text-sm w-full"
-                />
-              </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1" htmlFor="bw">
+                Peso corporal (kg)
+              </label>
+              <input
+                id="bw"
+                inputMode="decimal"
+                value={bodyweight}
+                onChange={(e) => setBodyweight(e.target.value)}
+                placeholder="72,5"
+                className="border rounded-lg px-3 py-2 text-sm w-full"
+              />
             </div>
 
             <div>
@@ -239,12 +223,12 @@ export default function CicloBoard({ cycle, sessions }: Props) {
             <dd className="text-foreground tabular-nums">{cycle.bodyweightKg} kg</dd>
           </div>
           <div>
-            <dt className="text-subtle text-xs">Reglete MAW</dt>
-            <dd className="text-foreground tabular-nums">{MAW_EDGE_MM} mm</dd>
+            <dt className="text-subtle text-xs">Reglete da célula</dt>
+            <dd className="text-foreground tabular-nums">{TEST_EDGE_MM} mm</dd>
           </div>
           <div>
-            <dt className="text-subtle text-xs">Reglete MED inicial</dt>
-            <dd className="text-foreground tabular-nums">{cycle.startEdgeMedMm} mm</dd>
+            <dt className="text-subtle text-xs">Pegada</dt>
+            <dd className="text-foreground">{GRIP_LABEL[cycle.grip]}</dd>
           </div>
         </dl>
       </section>
@@ -261,7 +245,8 @@ export default function CicloBoard({ cycle, sessions }: Props) {
         ) : (
           <ul className="divide-y divide-border">
             {cycleSessions.map((s) => {
-              const margin = avgMargin(s.sets);
+              const peak = sessionPeak(s.sets);
+              const moves = sessionMoves(s.sets);
               return (
                 <li key={s._id} className="py-2.5 flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -276,14 +261,8 @@ export default function CicloBoard({ cycle, sessions }: Props) {
                       ) : (
                         <>
                           {s.sets.length} séries
-                          {margin !== null && <> · margem média {margin}s</>}
-                          {s.sets[0] && (
-                            <>
-                              {" "}
-                              · {s.sets[0].edgeMm}mm
-                              {s.sets[0].loadKg > 0 && ` +${s.sets[0].loadKg}kg`}
-                            </>
-                          )}
+                          {peak !== null && <> · pico {peak}kg</>}
+                          {moves > 0 && <> · {moves} movimentos</>}
                         </>
                       )}
                     </p>
@@ -379,8 +358,17 @@ function PlanTable({
                   {PHASE_SHORT[w.phase]}
                 </span>
                 <span className="text-sm text-foreground tabular-nums">
-                  {w.sets} × {w.hangSeconds}s
-                  <span className="text-subtle"> (margem {w.targetMargin}s)</span>
+                  {isRecruitWeek(w) ? (
+                    <>
+                      {w.sets} × {w.pullsPerSet} puxadas de {w.pullSeconds}s
+                      {!w.maxIntent && <span className="text-subtle"> (~70%)</span>}
+                    </>
+                  ) : (
+                    <>
+                      {w.sets} × {w.setSeconds}s
+                      <span className="text-subtle"> ({w.movesPerSet} movs)</span>
+                    </>
+                  )}
                 </span>
                 {startDate && (
                   <span className="text-xs text-subtle ml-auto tabular-nums">
@@ -394,9 +382,10 @@ function PlanTable({
         })}
       </ul>
       <p className="text-xs text-subtle mt-3 pt-3 border-t border-border">
-        Protocolo MaxHangs de Eva López. Descanso de 3 min entre séries, sempre no
-        início da sessão, depois de aquecer. A margem é quanto tempo você ainda
-        aguentaria — nunca até a falha.
+        Puxadas de recrutamento isolado (Tyler Nelson, Camp4). Sempre no início da
+        sessão, depois de aquecer. Antes de começar, uma puxada de teste precisa
+        atingir 85% do seu MVC — abaixo disso os dedos não estão recuperados e a
+        sessão não acontece.
       </p>
     </section>
   );

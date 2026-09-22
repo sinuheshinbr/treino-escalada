@@ -5,7 +5,7 @@ import { addTest, deleteTest, type Test } from "@/app/actions-fingerboard";
 import ForceChart, { type ChartSeries } from "@/components/ForceChart";
 import {
   GRIP_LABEL,
-  MAW_EDGE_MM,
+  TEST_EDGE_MM,
   TEST_PULL_SECONDS,
   TEST_REST_HOURS,
   TEST_REST_MIN,
@@ -35,7 +35,7 @@ export default function ForcaBoard({ tests, defaultBodyweight }: Props) {
   const [open, setOpen] = useState(false);
 
   const [date, setDate] = useState(today);
-  const [edge, setEdge] = useState(String(MAW_EDGE_MM));
+  const [edge, setEdge] = useState(String(TEST_EDGE_MM));
   const [grip, setGrip] = useState<Grip>("half-crimp");
   const [left, setLeft] = useState("");
   const [right, setRight] = useState("");
@@ -188,7 +188,7 @@ export default function ForcaBoard({ tests, defaultBodyweight }: Props) {
               <h2 className="font-semibold text-foreground">Novo teste</h2>
               <p className="text-muted-foreground text-sm mt-1">
                 Puxada máxima de <strong>{TEST_PULL_SECONDS} segundos</strong> na
-                célula de carga, uma mão por vez, no reglete de {MAW_EDGE_MM}mm em
+                célula de carga, uma mão por vez, no reglete de {TEST_EDGE_MM}mm em
                 meia-crimp. Registra o <strong>pico</strong>, não a média.{" "}
                 {TEST_REST_MIN} min entre as mãos.
               </p>

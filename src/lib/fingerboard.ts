@@ -1,44 +1,52 @@
 /**
- * Protocolo MaxHangs — periodização MAW → MED (Eva López).
+ * Protocolo de força máxima de dedos com célula de carga.
  *
- * MAW (Maximum Added Weight): reglete fixo e confortável (20mm), carga no cinto.
- * MED (Minimum Edge Depth): peso corporal, reglete progressivamente menor.
+ * Baseado nas "isolated active recruitment pulls" de Tyler Nelson (Camp4 Human
+ * Performance): isometria de SOBREPOSIÇÃO — a força é produzida contra uma borda
+ * portátil fixa e medida, em vez de suspensa com lastro.
  *
- * Princípios que o app faz questão de respeitar:
- *  - Nunca até a falha: cada suspensão para com 3–5s de margem.
- *  - A progressão dentro do bloco é por NÚMERO DE SÉRIES (3-4-4-5), não por carga.
- *  - Deload obrigatório ao fim de cada bloco de 4 semanas.
- *  - Autorregulação: queda >25% na carga (MAW) ou >2mm no reglete (MED) aborta a sessão.
+ * Por que aqui e não MaxHangs (Eva López): a montagem disponível é uma prancha
+ * portátil + célula de carga, sem como pendurar com lastro nem regletes abaixo
+ * de 20mm. Isso inviabiliza tanto MAW quanto MED. O protocolo de puxadas resolve
+ * os dois: a intensidade se controla por força, não por lastro nem profundidade.
  *
- * Fontes: en-eva-lopez.blogspot.com, Fingerboard Training Guide II e III.
+ * Periodização em 10 semanas, geral → específico:
+ *   1–4   RECRUIT — puxadas máximas na célula, mão a mão
+ *   5     deload
+ *   6–9   BOARD   — recrutamento ativo na parede, movimentos curtos e controlados
+ *   10    deload + reteste
+ *
+ * Fontes:
+ *  - camp4humanperformance.com/blog/2018/9/20/program-auto-regulation-...
+ *  - strengthclimbing.com/dr-tyler-nelsons-new-active-finger-strength-training-protocols
  */
 
-export type Phase = "maw" | "med" | "deload";
+export type Phase = "recruit" | "board" | "deload";
 export type Grip = "half-crimp" | "open";
 export type Readiness = "verde" | "amarelo" | "laranja" | "vermelho";
 
-export const MAW_EDGE_MM = 20;
-export const HANG_SECONDS = 10;
-export const REST_SECONDS = 180;
-export const SESSIONS_PER_WEEK = 2;
+export const TEST_EDGE_MM = 20;
 export const CYCLE_LENGTH_WEEKS = 10;
+export const SESSIONS_PER_WEEK = 2;
 
-/** Queda de carga que dispara abortar a sessão (MAW). */
-export const ABORT_LOAD_DROP_PCT = 25;
-/** Aumento de profundidade do reglete que dispara abortar a sessão (MED). */
-export const ABORT_EDGE_GAIN_MM = 2;
+/**
+ * Corte de prontidão: depois do aquecimento, uma puxada de teste precisa atingir
+ * esta fração do MVC de referência. Abaixo disso, não se treina dedo no dia.
+ * Nelson usa 85% para a maioria das pegadas e 90% para as de maior risco
+ * (crimp fechado). Meia-crimp fica em 85%.
+ */
+export const READINESS_CUTOFF_PCT = 85;
+
+/** Descanso entre puxadas máximas dentro da série. */
+export const PULL_REST_SECONDS = 5;
 
 /* ------------------------- teste de força máxima ------------------------- */
 
-/** Duração da puxada máxima. O pico chega nos primeiros 2–3s; 7s garante capturá-lo. */
+/** Duração da puxada de teste. O pico chega nos primeiros 2–3s; 7s garante capturá-lo. */
 export const TEST_PULL_SECONDS = 7;
-/** Descanso entre mãos e entre tentativas. */
 export const TEST_REST_MIN = 3;
-/** Tentativas por mão. Fica-se com a melhor. */
 export const TEST_ATTEMPTS = 3;
-/** Janela em que um teste ainda conta como linha de base do ciclo. */
 export const BASELINE_WINDOW_DAYS = 14;
-/** Horas de descanso de dedos exigidas antes de testar. */
 export const TEST_REST_HOURS = 48;
 
 export interface WarmupStep {
@@ -55,7 +63,6 @@ export const TEST_WARMUP: WarmupStep[] = [
   { pct: 90, seconds: 3, restMin: 3 },
 ];
 
-/** O que invalida a comparação entre dois testes. */
 export const TEST_INVALIDATORS = [
   "Posição do braço ou do corpo diferente da do teste anterior",
   "Meia-crimp desmanchando para pegada aberta no meio da puxada",
@@ -63,44 +70,60 @@ export const TEST_INVALIDATORS = [
   "Horário do dia muito diferente",
 ];
 
-export interface WeekPlan {
+/* ------------------------------ o ciclo ------------------------------ */
+
+interface BaseWeek {
   week: number;
-  phase: Phase;
   sets: number;
-  hangSeconds: number;
-  /** Segundos de reserva até a falha. Abaixo de 3s a adaptação neural piora. */
-  targetMargin: number;
+  restMin: number;
   focus: string;
 }
 
+export interface RecruitWeek extends BaseWeek {
+  phase: "recruit" | "deload";
+  pullsPerSet: number;
+  pullSeconds: number;
+  /** Alvo de intensidade. Máximo no bloco, submáximo no deload. */
+  maxIntent: boolean;
+}
+
+export interface BoardWeek extends BaseWeek {
+  phase: "board";
+  setSeconds: number;
+  movesPerSet: number;
+  holdSeconds: number;
+}
+
+export type WeekPlan = RecruitWeek | BoardWeek;
+
 export const CYCLE: WeekPlan[] = [
-  { week: 1, phase: "maw", sets: 3, hangSeconds: 10, targetMargin: 5, focus: "Entrada no bloco: carga conservadora, aprende a calibrar a margem." },
-  { week: 2, phase: "maw", sets: 4, hangSeconds: 10, targetMargin: 5, focus: "Mesma carga, uma série a mais." },
-  { week: 3, phase: "maw", sets: 4, hangSeconds: 10, targetMargin: 5, focus: "Consolida o volume antes do pico." },
-  { week: 4, phase: "maw", sets: 5, hangSeconds: 10, targetMargin: 5, focus: "Pico de volume do bloco MAW." },
-  { week: 5, phase: "deload", sets: 2, hangSeconds: 10, targetMargin: 7, focus: "Deload obrigatório. Carga leve, só para manter o padrão motor." },
-  { week: 6, phase: "med", sets: 3, hangSeconds: 10, targetMargin: 3, focus: "Vira a chave: sai o lastro, entra o reglete menor." },
-  { week: 7, phase: "med", sets: 4, hangSeconds: 10, targetMargin: 3, focus: "Mesmo reglete, uma série a mais." },
-  { week: 8, phase: "med", sets: 4, hangSeconds: 10, targetMargin: 3, focus: "Consolida antes do pico." },
-  { week: 9, phase: "med", sets: 5, hangSeconds: 10, targetMargin: 3, focus: "Pico de volume do bloco MED." },
-  { week: 10, phase: "deload", sets: 2, hangSeconds: 10, targetMargin: 7, focus: "Deload. Fecha o ciclo e testa a força máxima no fim da semana." },
+  { week: 1, phase: "recruit", sets: 3, pullsPerSet: 3, pullSeconds: 3, maxIntent: true, restMin: 3, focus: "Entrada: aprende a construir força nos 3s e a achar a posição repetível." },
+  { week: 2, phase: "recruit", sets: 4, pullsPerSet: 3, pullSeconds: 3, maxIntent: true, restMin: 3, focus: "Uma série a mais, mesma intenção máxima." },
+  { week: 3, phase: "recruit", sets: 4, pullsPerSet: 4, pullSeconds: 3, maxIntent: true, restMin: 4, focus: "Sobe a densidade de puxadas por série." },
+  { week: 4, phase: "recruit", sets: 5, pullsPerSet: 4, pullSeconds: 3, maxIntent: true, restMin: 4, focus: "Pico do bloco. 40 puxadas máximas, ~45s sob tensão." },
+  { week: 5, phase: "deload", sets: 2, pullsPerSet: 3, pullSeconds: 3, maxIntent: false, restMin: 3, focus: "Deload. Puxadas a ~70%, só para manter o padrão. Decidir o board do bloco 2." },
+  { week: 6, phase: "board", sets: 5, setSeconds: 45, movesPerSet: 6, holdSeconds: 5, restMin: 3, focus: "Vira a chave: sai a célula, entra a parede. Movimentos curtos e controlados." },
+  { week: 7, phase: "board", sets: 6, setSeconds: 45, movesPerSet: 8, holdSeconds: 5, restMin: 3, focus: "Mais movimentos por série." },
+  { week: 8, phase: "board", sets: 8, setSeconds: 50, movesPerSet: 8, holdSeconds: 6, restMin: 4, focus: "Sobe o volume e o tempo por posição." },
+  { week: 9, phase: "board", sets: 10, setSeconds: 50, movesPerSet: 12, holdSeconds: 6, restMin: 4, focus: "Pico do bloco. Agarras menores se a qualidade do movimento aguentar." },
+  { week: 10, phase: "deload", sets: 2, pullsPerSet: 3, pullSeconds: 3, maxIntent: false, restMin: 3, focus: "Deload e reteste de MVC. Fecha o ciclo com número comparável ao do início." },
 ];
 
 export const PHASE_LABEL: Record<Phase, string> = {
-  maw: "MAW — carga no 20mm",
-  med: "MED — reglete mínimo",
+  recruit: "Puxadas de recrutamento",
+  board: "Recrutamento no board",
   deload: "Deload",
 };
 
 export const PHASE_SHORT: Record<Phase, string> = {
-  maw: "MAW",
-  med: "MED",
+  recruit: "Célula",
+  board: "Board",
   deload: "Deload",
 };
 
 export const PHASE_COLOR: Record<Phase, string> = {
-  maw: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  med: "bg-lime-500/15 text-lime-300 border-lime-500/30",
+  recruit: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+  board: "bg-lime-500/15 text-lime-300 border-lime-500/30",
   deload: "bg-slate-500/15 text-slate-300 border-slate-500/30",
 };
 
@@ -109,7 +132,7 @@ export const GRIP_LABEL: Record<Grip, string> = {
   open: "Aberta",
 };
 
-/** Escala Green Day (Charlie Schreiber) para a checagem pré-sessão. */
+/** Escala Green Day (Charlie Schreiber) — complementa o corte objetivo, não o substitui. */
 export const READINESS_SCALE: {
   id: Readiness;
   label: string;
@@ -133,6 +156,10 @@ export function weekPlan(week: number): WeekPlan | null {
   return CYCLE.find((w) => w.week === week) ?? null;
 }
 
+export function isRecruitWeek(p: WeekPlan): p is RecruitWeek {
+  return p.phase !== "board";
+}
+
 /** Em que semana do ciclo (1–10) cai um dia, dado o nº de dias desde o início. */
 export function cycleWeek(daysSinceStart: number): number | null {
   if (daysSinceStart < 0) return null;
@@ -140,47 +167,60 @@ export function cycleWeek(daysSinceStart: number): number | null {
   return week <= CYCLE_LENGTH_WEEKS ? week : null;
 }
 
-export interface SetLog {
-  edgeMm: number;
-  loadKg: number;
-  hangSeconds: number;
-  /** Segundos que o usuário sente que ainda aguentaria. */
-  marginSeconds: number;
+/* ------------------------------ sessões ------------------------------ */
+
+export type SessionSet =
+  | { kind: "recruit"; leftKg: number; rightKg: number; pulls: number }
+  | { kind: "board"; seconds: number; moves: number };
+
+export function isRecruitSet(
+  s: SessionSet
+): s is { kind: "recruit"; leftKg: number; rightKg: number; pulls: number } {
+  return s.kind === "recruit";
 }
 
-export function avgMargin(sets: SetLog[]): number | null {
-  if (sets.length === 0) return null;
-  const sum = sets.reduce((acc, s) => acc + s.marginSeconds, 0);
-  return Math.round((sum / sets.length) * 10) / 10;
+/** Maior pico da sessão, em kg. É a métrica que o bloco RECRUIT persegue. */
+export function sessionPeak(sets: SessionSet[]): number | null {
+  const vals = sets.filter(isRecruitSet).flatMap((s) => [s.leftKg, s.rightKg]);
+  return vals.length ? Math.max(...vals) : null;
 }
 
-/** Carga de trabalho da sessão: a maior usada (MAW) / o menor reglete (MED). */
-export function workingLoad(sets: SetLog[]): number | null {
-  if (sets.length === 0) return null;
-  return Math.max(...sets.map((s) => s.loadKg));
+export function sessionPeakByHand(
+  sets: SessionSet[]
+): { left: number; right: number } | null {
+  const r = sets.filter(isRecruitSet);
+  if (!r.length) return null;
+  return {
+    left: Math.max(...r.map((s) => s.leftKg)),
+    right: Math.max(...r.map((s) => s.rightKg)),
+  };
 }
 
-export function workingEdge(sets: SetLog[]): number | null {
-  if (sets.length === 0) return null;
-  return Math.min(...sets.map((s) => s.edgeMm));
+/** Volume do bloco BOARD: total de movimentos na sessão. */
+export function sessionMoves(sets: SessionSet[]): number {
+  return sets.reduce((acc, s) => (s.kind === "board" ? acc + s.moves : acc), 0);
 }
+
+/* --------------------------- autorregulação --------------------------- */
 
 export interface Verdict {
   status: "go" | "caution" | "abort";
   reasons: string[];
 }
 
+export function readinessThreshold(mvcKg: number): number {
+  return Math.round(mvcKg * (READINESS_CUTOFF_PCT / 100) * 10) / 10;
+}
+
 /**
- * Checagem pré-sessão: cruza a disposição declarada com a carga que o
- * aquecimento revelou hoje contra a última sessão da mesma fase.
+ * Checagem pré-sessão. O corte é objetivo: uma puxada de teste depois do
+ * aquecimento precisa atingir 85% do MVC de referência. Abaixo disso os dedos
+ * não estão recuperados, independente de como a pessoa se sente.
  */
 export function preSessionCheck(input: {
   readiness: Readiness;
-  phase: Phase;
-  todayEdgeMm: number;
-  todayLoadKg: number;
-  lastEdgeMm: number | null;
-  lastLoadKg: number | null;
+  mvcKg: number | null;
+  readinessPullKg: number | null;
 }): Verdict {
   const reasons: string[] = [];
   let status: Verdict["status"] = "go";
@@ -191,24 +231,18 @@ export function preSessionCheck(input: {
     reasons.push(`Disposição ${scale.label.toLowerCase()}: ${scale.hint}`);
   }
 
-  if (input.phase === "maw" && input.lastLoadKg && input.lastLoadKg > 0) {
-    const dropPct = ((input.lastLoadKg - input.todayLoadKg) / input.lastLoadKg) * 100;
-    if (dropPct > ABORT_LOAD_DROP_PCT) {
+  if (input.mvcKg && input.readinessPullKg !== null) {
+    const cutoff = readinessThreshold(input.mvcKg);
+    const pct = Math.round((input.readinessPullKg / input.mvcKg) * 100);
+    if (input.readinessPullKg < cutoff) {
       status = "abort";
       reasons.push(
-        `Carga ${Math.round(dropPct)}% abaixo da última sessão (${input.lastLoadKg}kg → ${input.todayLoadKg}kg). ` +
-          `O gatilho do protocolo é ${ABORT_LOAD_DROP_PCT}%.`
+        `Puxada de teste em ${input.readinessPullKg}kg = ${pct}% do MVC (${input.mvcKg}kg). ` +
+          `O corte é ${READINESS_CUTOFF_PCT}%, ou seja ${cutoff}kg. Dedos não recuperados.`
       );
-    }
-  }
-
-  if (input.phase === "med" && input.lastEdgeMm) {
-    const gain = input.todayEdgeMm - input.lastEdgeMm;
-    if (gain > ABORT_EDGE_GAIN_MM) {
-      status = "abort";
+    } else {
       reasons.push(
-        `Reglete ${gain}mm mais fundo que a última sessão (${input.lastEdgeMm}mm → ${input.todayEdgeMm}mm). ` +
-          `O gatilho do protocolo é ${ABORT_EDGE_GAIN_MM}mm.`
+        `Puxada de teste em ${pct}% do MVC — acima do corte de ${READINESS_CUTOFF_PCT}%.`
       );
     }
   }
@@ -220,36 +254,35 @@ export function preSessionCheck(input: {
 }
 
 /**
- * Sugestão para a próxima sessão, comparando a margem média registrada
- * com a margem-alvo da semana. Ordem de alavancas da Eva López:
- * margem → profundidade do reglete → duração da suspensão.
+ * Leitura de tendência do bloco RECRUIT. Nelson encerra o ciclo quando a força
+ * de pico para de subir — duas sessões sem progresso é o sinal.
  */
-export function suggestNext(
-  phase: Phase,
-  targetMargin: number,
-  sets: SetLog[]
-): { loadDeltaKg: number; edgeDeltaMm: number; text: string } {
-  const avg = avgMargin(sets);
-  if (avg === null) {
-    return { loadDeltaKg: 0, edgeDeltaMm: 0, text: "Sem séries registradas." };
+export function peakTrend(
+  peaks: number[]
+): { delta: number | null; stalled: boolean; text: string } {
+  if (peaks.length < 2) {
+    return { delta: null, stalled: false, text: "Ainda sem sessão anterior para comparar." };
   }
-  const diff = avg - targetMargin;
+  const [last, prev] = [peaks[peaks.length - 1], peaks[peaks.length - 2]];
+  const delta = Math.round((last - prev) * 10) / 10;
 
-  if (phase === "deload") {
-    return { loadDeltaKg: 0, edgeDeltaMm: 0, text: "Semana de deload: mantém leve, sem progredir." };
-  }
-
-  if (phase === "maw") {
-    if (diff >= 2) return { loadDeltaKg: 2, edgeDeltaMm: 0, text: `Margem média ${avg}s contra alvo de ${targetMargin}s. Sobrou bastante: sobe 2kg.` };
-    if (diff >= 1) return { loadDeltaKg: 1, edgeDeltaMm: 0, text: `Margem média ${avg}s contra alvo de ${targetMargin}s. Sobe 1kg.` };
-    if (diff <= -1) return { loadDeltaKg: -2, edgeDeltaMm: 0, text: `Margem média ${avg}s contra alvo de ${targetMargin}s. Passou do ponto: desce 2kg.` };
-    return { loadDeltaKg: 0, edgeDeltaMm: 0, text: `Margem média ${avg}s, em cima do alvo de ${targetMargin}s. Mantém a carga.` };
+  if (peaks.length >= 3) {
+    const before = peaks[peaks.length - 3];
+    if (last <= prev && prev <= before) {
+      return {
+        delta,
+        stalled: true,
+        text: `Pico parado há duas sessões (${before} → ${prev} → ${last}kg). Se repetir, é hora de deload ou de mudar o estímulo.`,
+      };
+    }
   }
 
-  if (diff >= 2) return { loadDeltaKg: 0, edgeDeltaMm: -1, text: `Margem média ${avg}s contra alvo de ${targetMargin}s. Sobrou: tira 1mm do reglete.` };
-  if (diff <= -1) return { loadDeltaKg: 0, edgeDeltaMm: 1, text: `Margem média ${avg}s contra alvo de ${targetMargin}s. Volta 1mm no reglete.` };
-  return { loadDeltaKg: 0, edgeDeltaMm: 0, text: `Margem média ${avg}s, em cima do alvo de ${targetMargin}s. Mantém o reglete.` };
+  if (delta > 0) return { delta, stalled: false, text: `Pico subiu ${delta}kg desde a última sessão.` };
+  if (delta < 0) return { delta, stalled: false, text: `Pico caiu ${Math.abs(delta)}kg. Uma sessão não faz tendência — observa a próxima.` };
+  return { delta, stalled: false, text: "Pico estável desde a última sessão." };
 }
+
+/* --------------------------- métricas derivadas --------------------------- */
 
 export function pctBodyweight(kg: number, bodyweightKg: number): number | null {
   if (!bodyweightKg || bodyweightKg <= 0) return null;

@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import { getDb } from "@/lib/mongodb";
 import { isValidDayKey } from "@/lib/dates";
-import type { Grip, Phase, Readiness, SetLog } from "@/lib/fingerboard";
+import type { Grip, Phase, Readiness, SessionSet } from "@/lib/fingerboard";
 import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
 
@@ -15,8 +15,6 @@ export interface Cycle {
   days: number[];
   grip: Grip;
   bodyweightKg: number;
-  /** Reglete com que o bloco MED começa (semana 6). */
-  startEdgeMedMm: number;
   active: boolean;
   createdAt: string;
 }
@@ -29,8 +27,10 @@ export interface Session {
   week: number;
   phase: Phase;
   readiness: Readiness;
+  /** Puxada de teste pós-aquecimento, em kg. Comparada ao corte de 85% do MVC. */
+  readinessPullKg: number | null;
   aborted: boolean;
-  sets: SetLog[];
+  sets: SessionSet[];
   notes: string;
   createdAt: string;
 }
@@ -66,7 +66,6 @@ function mapCycle(doc: Record<string, unknown>): Cycle {
     days: Array.isArray(doc.days) ? (doc.days as number[]) : [2, 5],
     grip: (doc.grip as Grip) ?? "half-crimp",
     bodyweightKg: num(doc.bodyweightKg),
-    startEdgeMedMm: num(doc.startEdgeMedMm, 20),
     active: !!doc.active,
     createdAt: (doc.createdAt as Date).toISOString(),
   };
@@ -81,8 +80,10 @@ function mapSession(doc: Record<string, unknown>): Session {
     week: num(doc.week),
     phase: (doc.phase as Phase) ?? "maw",
     readiness: (doc.readiness as Readiness) ?? "verde",
+    readinessPullKg:
+      typeof doc.readinessPullKg === "number" ? doc.readinessPullKg : null,
     aborted: !!doc.aborted,
-    sets: Array.isArray(doc.sets) ? (doc.sets as SetLog[]) : [],
+    sets: Array.isArray(doc.sets) ? (doc.sets as SessionSet[]) : [],
     notes: str(doc.notes),
     createdAt: (doc.createdAt as Date).toISOString(),
   };
@@ -120,7 +121,6 @@ export async function startCycle(input: {
   days: number[];
   grip: Grip;
   bodyweightKg: number;
-  startEdgeMedMm: number;
 }) {
   const email = await requireUser();
   if (!email) return { error: "Não autenticado" };
@@ -128,7 +128,6 @@ export async function startCycle(input: {
   if (input.days.length !== 2) return { error: "Escolha exatamente 2 dias de treino por semana" };
   if (input.days[0] === input.days[1]) return { error: "Os dois dias precisam ser diferentes" };
   if (!(input.bodyweightKg > 0)) return { error: "Peso corporal inválido" };
-  if (!(input.startEdgeMedMm > 0)) return { error: "Reglete inicial do MED inválido" };
 
   const db = getDb();
   await db
@@ -140,7 +139,6 @@ export async function startCycle(input: {
     days: [...input.days].sort((a, b) => a - b),
     grip: input.grip,
     bodyweightKg: input.bodyweightKg,
-    startEdgeMedMm: input.startEdgeMedMm,
     active: true,
     createdAt: new Date(),
   });
@@ -177,8 +175,9 @@ export async function logSession(input: {
   week: number;
   phase: Phase;
   readiness: Readiness;
+  readinessPullKg: number | null;
   aborted: boolean;
-  sets: SetLog[];
+  sets: SessionSet[];
   notes: string;
 }) {
   const email = await requireUser();
@@ -187,10 +186,14 @@ export async function logSession(input: {
   if (!input.aborted && input.sets.length === 0)
     return { error: "Registre pelo menos uma série, ou marque a sessão como abortada" };
   for (const s of input.sets) {
-    if (!(s.edgeMm > 0)) return { error: "Reglete inválido em uma das séries" };
-    if (s.loadKg < 0) return { error: "Carga inválida em uma das séries" };
-    if (!(s.hangSeconds > 0)) return { error: "Duração inválida em uma das séries" };
-    if (s.marginSeconds < 0) return { error: "Margem inválida em uma das séries" };
+    if (s.kind === "recruit") {
+      if (!(s.leftKg > 0) || !(s.rightKg > 0))
+        return { error: "Registre o pico das duas mãos em cada série" };
+      if (!(s.pulls > 0)) return { error: "Número de puxadas inválido" };
+    } else {
+      if (!(s.seconds > 0)) return { error: "Duração inválida em uma das séries" };
+      if (!(s.moves > 0)) return { error: "Número de movimentos inválido" };
+    }
   }
 
   const db = getDb();
@@ -201,6 +204,7 @@ export async function logSession(input: {
         week: input.week,
         phase: input.phase,
         readiness: input.readiness,
+        readinessPullKg: input.readinessPullKg,
         aborted: input.aborted,
         sets: input.sets,
         notes: input.notes.trim(),
