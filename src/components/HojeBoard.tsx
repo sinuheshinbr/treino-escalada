@@ -65,7 +65,10 @@ export default function HojeBoard({ cycle, sessions, tests }: Props) {
   const [editing, setEditing] = useState(false);
   const [skipBaseline, setSkipBaseline] = useState(false);
 
-  const week = cycle ? cycleWeek(diffDays(cycle.startDate, today)) : null;
+  const elapsed = cycle ? diffDays(cycle.startDate, today) : null;
+  const week = elapsed !== null ? cycleWeek(elapsed) : null;
+  /** Antes do início do ciclo — estado distinto de "acabou". */
+  const notStarted = elapsed !== null && elapsed < 0;
   const plan = week ? weekPlan(week) : null;
   const cycleSessions = cycle ? sessions.filter((s) => s.cycleId === cycle._id) : [];
   const alreadyLogged = cycleSessions.find((s) => s.date === today) ?? null;
@@ -187,6 +190,37 @@ export default function HojeBoard({ cycle, sessions, tests }: Props) {
         href="/ciclo"
         cta="Configurar ciclo"
       />
+    );
+  }
+
+  if (notStarted) {
+    const faltam = Math.abs(elapsed!);
+    return (
+      <div className="space-y-4">
+        <div className="bg-card border border-border rounded-xl p-6 text-center">
+          <p className="text-subtle text-sm capitalize">{formatDayBR(today)}</p>
+          <h2 className="font-semibold text-foreground text-lg mt-1 mb-1">
+            Ciclo começa em {faltam} {faltam === 1 ? "dia" : "dias"}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Primeira semana abre {DOW[getDayOfWeek(cycle.startDate)]},{" "}
+            {formatDayShortBR(cycle.startDate)}. Até lá, treina normal.
+          </p>
+        </div>
+        {!baseline ? (
+          <BaselineCard today={today} onSkip={() => {}} hideSkip />
+        ) : (
+          <div className="bg-card border border-success/30 rounded-xl p-4">
+            <p className="text-sm text-foreground">
+              Linha de base registrada em {formatDayShortBR(baseline.date)}: MVC de{" "}
+              <strong>{mvcKg}kg</strong> na mão {strongHand}.
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              O corte de prontidão do ciclo será {readinessThreshold(mvcKg!)}kg.
+            </p>
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -589,7 +623,15 @@ function LoggedCard({
   );
 }
 
-function BaselineCard({ today, onSkip }: { today: string; onSkip: () => void }) {
+function BaselineCard({
+  today,
+  onSkip,
+  hideSkip = false,
+}: {
+  today: string;
+  onSkip: () => void;
+  hideSkip?: boolean;
+}) {
   return (
     <div className="space-y-4">
       <section className="bg-card border border-primary/30 rounded-xl p-4">
@@ -663,13 +705,15 @@ function BaselineCard({ today, onSkip }: { today: string; onSkip: () => void }) 
         >
           Registrar o teste
         </Link>
-        <button
-          type="button"
-          onClick={onSkip}
-          className="text-subtle hover:text-foreground text-sm px-4"
-        >
-          Treinar mesmo assim
-        </button>
+        {!hideSkip && (
+          <button
+            type="button"
+            onClick={onSkip}
+            className="text-subtle hover:text-foreground text-sm px-4"
+          >
+            Treinar mesmo assim
+          </button>
+        )}
       </div>
     </div>
   );
