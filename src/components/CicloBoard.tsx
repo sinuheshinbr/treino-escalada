@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import {
   startCycle,
   endCycle,
+  updateCycle,
+  deleteCycle,
   deleteSession,
   type Cycle,
   type Session,
@@ -45,6 +47,8 @@ export default function CicloBoard({ cycle, sessions }: Props) {
   const [grip, setGrip] = useState<Grip>("half-crimp");
   const [bodyweight, setBodyweight] = useState("");
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   function toggleDay(d: number) {
     setDays((prev) => {
@@ -67,6 +71,37 @@ export default function CicloBoard({ cycle, sessions }: Props) {
         bodyweightKg: bw,
       });
       if (r.error) setError(r.error);
+    });
+  }
+
+  function handleEdit() {
+    setError("");
+    const bw = parseFloat(bodyweight.replace(",", "."));
+    if (isNaN(bw) || bw <= 0) return setError("Informe seu peso corporal");
+    if (days.length !== 2) return setError("Escolha exatamente 2 dias de treino");
+    startTransition(async () => {
+      const r = await updateCycle({ startDate, days, grip, bodyweightKg: bw });
+      if (r.error) setError(r.error);
+      else setEditing(false);
+    });
+  }
+
+  function openEdit() {
+    if (!cycle) return;
+    setStartDate(cycle.startDate);
+    setDays(cycle.days);
+    setGrip(cycle.grip);
+    setBodyweight(String(cycle.bodyweightKg));
+    setError("");
+    setEditing(true);
+  }
+
+  function handleDelete() {
+    setError("");
+    startTransition(async () => {
+      const r = await deleteCycle();
+      if (r.error) setError(r.error);
+      else setConfirmDelete(false);
     });
   }
 
@@ -100,74 +135,17 @@ export default function CicloBoard({ cycle, sessions }: Props) {
           </p>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1" htmlFor="start">
-                Primeira semana começa em
-              </label>
-              <input
-                id="start"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm w-full"
-              />
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">
-                Dias de treino <span className="text-subtle">(2 por semana, 48–72h de intervalo)</span>
-              </p>
-              <div className="flex gap-1.5 flex-wrap">
-                {DOW.map((label, d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => toggleDay(d)}
-                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                      days.includes(d)
-                        ? "bg-primary/20 text-primary border-primary/40"
-                        : "border-border-strong text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1" htmlFor="bw">
-                Peso corporal (kg)
-              </label>
-              <input
-                id="bw"
-                inputMode="decimal"
-                value={bodyweight}
-                onChange={(e) => setBodyweight(e.target.value)}
-                placeholder="72,5"
-                className="border rounded-lg px-3 py-2 text-sm w-full"
-              />
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Pegada</p>
-              <div className="flex gap-1.5">
-                {(Object.keys(GRIP_LABEL) as Grip[]).map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGrip(g)}
-                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                      grip === g
-                        ? "bg-primary/20 text-primary border-primary/40"
-                        : "border-border-strong text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {GRIP_LABEL[g]}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <CycleFields
+              startDate={startDate}
+              setStartDate={setStartDate}
+              days={days}
+              toggleDay={toggleDay}
+              grip={grip}
+              setGrip={setGrip}
+              bodyweight={bodyweight}
+              setBodyweight={setBodyweight}
+              idPrefix="new"
+            />
 
             {error && <p className="text-destructive text-sm">{error}</p>}
 
@@ -217,20 +195,63 @@ export default function CicloBoard({ cycle, sessions }: Props) {
             <p className="text-subtle text-xs">sessões</p>
           </div>
         </div>
-        <dl className="grid grid-cols-3 gap-3 text-sm border-t border-border pt-3">
-          <div>
-            <dt className="text-subtle text-xs">Peso corporal</dt>
-            <dd className="text-foreground tabular-nums">{cycle.bodyweightKg} kg</dd>
+        {editing ? (
+          <div className="border-t border-border pt-3 space-y-4">
+            <CycleFields
+              startDate={startDate}
+              setStartDate={setStartDate}
+              days={days}
+              toggleDay={toggleDay}
+              grip={grip}
+              setGrip={setGrip}
+              bodyweight={bodyweight}
+              setBodyweight={setBodyweight}
+              idPrefix="edit"
+            />
+            {error && <p className="text-destructive text-sm">{error}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleEdit}
+                disabled={isPending}
+                className="bg-primary text-primary-foreground font-medium rounded-lg px-4 py-2 text-sm hover:bg-primary-hover disabled:opacity-50 flex-1"
+              >
+                {isPending ? "Salvando…" : "Salvar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="text-muted-foreground hover:text-foreground text-sm px-4"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
-          <div>
-            <dt className="text-subtle text-xs">Reglete da célula</dt>
-            <dd className="text-foreground tabular-nums">{TEST_EDGE_MM} mm</dd>
-          </div>
-          <div>
-            <dt className="text-subtle text-xs">Pegada</dt>
-            <dd className="text-foreground">{GRIP_LABEL[cycle.grip]}</dd>
-          </div>
-        </dl>
+        ) : (
+          <>
+            <dl className="grid grid-cols-3 gap-3 text-sm border-t border-border pt-3">
+              <div>
+                <dt className="text-subtle text-xs">Peso corporal</dt>
+                <dd className="text-foreground tabular-nums">{cycle.bodyweightKg} kg</dd>
+              </div>
+              <div>
+                <dt className="text-subtle text-xs">Reglete da célula</dt>
+                <dd className="text-foreground tabular-nums">{TEST_EDGE_MM} mm</dd>
+              </div>
+              <div>
+                <dt className="text-subtle text-xs">Pegada</dt>
+                <dd className="text-foreground">{GRIP_LABEL[cycle.grip]}</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              onClick={openEdit}
+              className="text-primary hover:text-primary-hover text-sm mt-3"
+            >
+              Editar ciclo
+            </button>
+          </>
+        )}
       </section>
 
       <PlanTable currentWeek={week} startDate={cycle.startDate} />
@@ -310,14 +331,47 @@ export default function CicloBoard({ cycle, sessions }: Props) {
               </button>
             </div>
           </div>
+        ) : confirmDelete ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Apagar o ciclo e <strong className="text-foreground">todas as sessões
+              dele</strong>? Não tem volta. Os testes de força ficam.
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="text-muted-foreground hover:text-foreground text-sm px-3 py-1.5"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isPending}
+                className="bg-destructive text-destructive-foreground rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+              >
+                Apagar
+              </button>
+            </div>
+          </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmEnd(true)}
-            className="text-subtle hover:text-destructive text-sm"
-          >
-            Encerrar ciclo
-          </button>
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={() => setConfirmEnd(true)}
+              className="text-subtle hover:text-foreground text-sm"
+            >
+              Encerrar ciclo
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="text-subtle hover:text-destructive text-sm"
+            >
+              Apagar ciclo
+            </button>
+          </div>
         )}
       </section>
     </div>
@@ -388,5 +442,109 @@ function PlanTable({
         sessão não acontece.
       </p>
     </section>
+  );
+}
+
+function CycleFields({
+  startDate,
+  setStartDate,
+  days,
+  toggleDay,
+  grip,
+  setGrip,
+  bodyweight,
+  setBodyweight,
+  idPrefix,
+}: {
+  startDate: string;
+  setStartDate: (v: string) => void;
+  days: number[];
+  toggleDay: (d: number) => void;
+  grip: Grip;
+  setGrip: (g: Grip) => void;
+  bodyweight: string;
+  setBodyweight: (v: string) => void;
+  idPrefix: string;
+}) {
+  return (
+    <>
+      <div>
+        <label
+          className="block text-sm text-muted-foreground mb-1"
+          htmlFor={`${idPrefix}-start`}
+        >
+          Primeira semana começa em
+        </label>
+        <input
+          id={`${idPrefix}-start`}
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm w-full"
+        />
+      </div>
+
+      <div>
+        <p className="text-sm text-muted-foreground mb-1">
+          Dias de treino{" "}
+          <span className="text-subtle">(2 por semana, 48–72h de intervalo)</span>
+        </p>
+        <div className="flex gap-1.5 flex-wrap">
+          {DOW.map((label, d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => toggleDay(d)}
+              aria-pressed={days.includes(d)}
+              className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                days.includes(d)
+                  ? "bg-primary/20 text-primary border-primary/40"
+                  : "border-border-strong text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label
+          className="block text-sm text-muted-foreground mb-1"
+          htmlFor={`${idPrefix}-bw`}
+        >
+          Peso corporal (kg)
+        </label>
+        <input
+          id={`${idPrefix}-bw`}
+          inputMode="decimal"
+          value={bodyweight}
+          onChange={(e) => setBodyweight(e.target.value)}
+          placeholder="72,5"
+          className="border rounded-lg px-3 py-2 text-sm w-full"
+        />
+      </div>
+
+      <div>
+        <p className="text-sm text-muted-foreground mb-1">Pegada</p>
+        <div className="flex gap-1.5">
+          {(Object.keys(GRIP_LABEL) as Grip[]).map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setGrip(g)}
+              aria-pressed={grip === g}
+              className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                grip === g
+                  ? "bg-primary/20 text-primary border-primary/40"
+                  : "border-border-strong text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {GRIP_LABEL[g]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }

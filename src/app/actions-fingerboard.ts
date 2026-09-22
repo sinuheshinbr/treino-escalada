@@ -146,6 +146,36 @@ export async function startCycle(input: {
   return { success: true };
 }
 
+export async function updateCycle(input: {
+  startDate: string;
+  days: number[];
+  grip: Grip;
+  bodyweightKg: number;
+}) {
+  const email = await requireUser();
+  if (!email) return { error: "Não autenticado" };
+  if (!isValidDayKey(input.startDate)) return { error: "Data de início inválida" };
+  if (input.days.length !== 2) return { error: "Escolha exatamente 2 dias de treino" };
+  if (input.days[0] === input.days[1]) return { error: "Os dois dias precisam ser diferentes" };
+  if (!(input.bodyweightKg > 0)) return { error: "Peso corporal inválido" };
+
+  const db = getDb();
+  const r = await db.collection("fb_cycles").updateOne(
+    { userEmail: email, active: true },
+    {
+      $set: {
+        startDate: input.startDate,
+        days: [...input.days].sort((a, b) => a - b),
+        grip: input.grip,
+        bodyweightKg: input.bodyweightKg,
+      },
+    }
+  );
+  if (r.matchedCount === 0) return { error: "Nenhum ciclo ativo" };
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
 export async function endCycle() {
   const email = await requireUser();
   if (!email) return { error: "Não autenticado" };
@@ -154,6 +184,22 @@ export async function endCycle() {
     .updateMany({ userEmail: email, active: true }, { $set: { active: false } });
   revalidatePath("/", "layout");
   return { success: true };
+}
+
+/** Apaga o ciclo ativo e todas as sessões dele. Não mexe nos testes de força. */
+export async function deleteCycle() {
+  const email = await requireUser();
+  if (!email) return { error: "Não autenticado" };
+  const db = getDb();
+  const cycle = await db.collection("fb_cycles").findOne({ userEmail: email, active: true });
+  if (!cycle) return { error: "Nenhum ciclo ativo" };
+  const cycleId = cycle._id.toString();
+  const { deletedCount } = await db
+    .collection("fb_sessions")
+    .deleteMany({ userEmail: email, cycleId });
+  await db.collection("fb_cycles").deleteOne({ _id: cycle._id });
+  revalidatePath("/", "layout");
+  return { success: true, sessionsDeleted: deletedCount };
 }
 
 /* ----------------------------- sessões ----------------------------- */
